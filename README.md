@@ -1,12 +1,12 @@
-# PC Monitor (v1.22)
+# Esp_Mon (v1.22)
 
-A high-performance, real-time PC monitoring system featuring a Rust-based background service and an ESP32 (CYD) touchscreen display. Optimized for AMD hardware with dual-mode communication (Serial & WiFi).
+A high-performance, real-time PC monitoring system featuring a Rust-based background service and an ESP32 (CYD) touchscreen display. Universal support for all PC hardware (AMD, NVIDIA, Intel) and Laptops with dual-mode communication (Serial & WiFi).
 
 ![ESP32-2432S028R](https://raw.githubusercontent.com/witnessmenow/ESP32-Cheap-Yellow-Display/main/images/CYD-Front.jpg)
 *Target Hardware: ESP32-2432S028R (Cheap Yellow Display)*
 
 ## 🚀 Key Features
-- **AMD & NVIDIA Support:** Accurate temperature and usage tracking for Ryzen/Radeon and Intel/NVIDIA systems via LibreHardwareMonitor.
+- **Universal Hardware Support:** Accurate temperature and usage tracking for all CPU/GPU brands and Laptops via LibreHardwareMonitor.
 - **Zero-Lag Graphing:** Sprite-based rendering on the ESP32 for ultra-smooth 60FPS updates.
 - **Smart Auto-Switching:** Automatically prefers USB Serial connection when plugged in, falling back to WiFi when wireless.
 - **Real-Time Ping:** True RTT calculation displayed on the screen.
@@ -35,7 +35,7 @@ This project is designed specifically for the **ESP32-2432S028R**, commonly know
 ## 📦 Setup Instructions
 
 ### 1. PC Side (Rust Sender)
-1. **Download:** Get the latest pre-compiled executable from the [Official Releases](https://github.com/alwalid54321/PC-Monitor-Pro-Ultra/releases).
+1. **Download:** Get the latest pre-compiled executable from the [Official Releases](https://github.com/alwalid54321/Esp_Mon/releases).
 2. Install [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) and keep it running (required for temps).
 3. Run `Esp_Sender.exe`. It will start hidden in your system tray.
 4. **Configuration:** Right-click the tray icon and select **Settings** to configure your ESP's IP and COM port.
