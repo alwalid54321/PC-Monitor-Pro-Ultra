@@ -1,4 +1,4 @@
-# Esp_Mon (v1.22)
+# Esp_Mon (v1.23)
 
 A high-performance, real-time PC monitoring system featuring a Rust-based background service and an ESP32 (CYD) touchscreen display. Universal support for all PC hardware (AMD, NVIDIA, Intel) and Laptops with dual-mode communication (Serial & WiFi).
 

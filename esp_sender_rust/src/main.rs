@@ -9,13 +9,13 @@ use std::thread;
 use std::net::UdpSocket;
 use std::fs;
 use sysinfo::{System, Networks, Disks};
-use tray_item::{TrayItem, IconSource};
+use tray_icon::{TrayIconBuilder, Icon, menu::{Menu, MenuItem, PredefinedMenuItem, MenuEvent}};
 use chrono::Local;
 use serde::{Deserialize, Serialize};
 use wmi::WMIConnection;
 
 // WinAPI
-use winapi::um::winuser::{ShowWindow, SW_HIDE, SW_SHOW, MessageBoxW, MB_OK, MB_ICONINFORMATION};
+use winapi::um::winuser::{ShowWindow, SW_HIDE, SW_SHOW, MessageBoxW, MB_OK, MB_ICONINFORMATION, GetForegroundWindow, GetWindowTextW};
 use winapi::um::wincon::{GetConsoleWindow};
 use winapi::um::consoleapi::{AllocConsole};
 
@@ -82,7 +82,6 @@ fn open_settings_ui(current_config: AppConfig) {
     
     let port_hint = if port_list.is_empty() { "None detected".to_string() } else { format!("Found: {}", port_list) };
 
-    // Professional Single-Window PowerShell Script (WinForms)
     let ps_script = format!(
         "Add-Type -AssemblyName System.Windows.Forms; \
          Add-Type -AssemblyName System.Drawing; \
@@ -125,14 +124,11 @@ fn open_settings_ui(current_config: AppConfig) {
                 new_config.esp_ip = parts[0].to_string();
                 new_config.com_port = parts[1].to_string();
                 new_config.auto_start = parts[2].to_lowercase() == "true";
-
                 let _ = new_config.save();
                 new_config.update_autostart();
-                
                 unsafe {
                     let title = "Settings Saved\0".encode_utf16().collect::<Vec<u16>>();
-                    let msg = "Settings applied successfully! Please restart the application for changes to take effect.\0"
-                        .encode_utf16().collect::<Vec<u16>>();
+                    let msg = "Settings applied successfully! Please restart the application.\0".encode_utf16().collect::<Vec<u16>>();
                     MessageBoxW(std::ptr::null_mut(), msg.as_ptr(), title.as_ptr(), MB_OK | MB_ICONINFORMATION);
                 }
             }
@@ -176,48 +172,49 @@ fn get_hardware_stats() -> HardwareData {
 }
 
 fn get_active_window() -> String {
-    let script = "[Win32.User32]::GetWindowText([Win32.User32]::GetForegroundWindow(), ($sb = New-Object System.Text.StringBuilder 256), $sb.Capacity) | Out-Null; $sb.ToString()";
-    let full_cmd = format!("Add-Type '@\n[DllImport(\"user32.dll\")] public static extern IntPtr GetForegroundWindow();\n[DllImport(\"user32.dll\")] public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);\n@' -Name User32 -Namespace Win32; {}", script);
-    let out = Command::new("powershell").args(["-NoProfile", "-Command", &full_cmd]).creation_flags(CREATE_NO_WINDOW).output();
-    if let Ok(o) = out {
-        let title = String::from_utf8_lossy(&o.stdout).trim().to_string();
-        if title.is_empty() { "Desktop".to_string() } else { title }
-    } else { "Desktop".to_string() }
+    unsafe {
+        let hwnd = GetForegroundWindow();
+        if hwnd.is_null() { return "Desktop".to_string(); }
+        let mut buffer = [0u16; 512];
+        let len = GetWindowTextW(hwnd, buffer.as_mut_ptr(), 512);
+        if len > 0 {
+            let title = String::from_utf16_lossy(&buffer[..len as usize]);
+            if title.is_empty() { "Desktop".to_string() } else { title }
+        } else { "Desktop".to_string() }
+    }
 }
 
 fn main() {
     let config = Arc::new(Mutex::new(AppConfig::load()));
 
-    let tooltip = "PC Monitor v1.11\nMonitoring: AMD/Intel";
-    let mut tray = TrayItem::new(tooltip, IconSource::Resource("app-icon")).expect("Failed to create tray icon");
+    let tray_menu = Menu::new();
+    let settings_item = MenuItem::new("Settings", true, None);
+    let show_logs_item = MenuItem::new("Show Logs", true, None);
+    let hide_logs_item = MenuItem::new("Hide Logs", true, None);
+    let quit_item = MenuItem::new("Quit", true, None);
 
-    let cfg_ui = Arc::clone(&config);
-    tray.add_menu_item("Settings", move || {
-        let current = cfg_ui.lock().unwrap().clone();
-        open_settings_ui(current);
-    }).ok();
+    let _ = tray_menu.append_items(&[
+        &settings_item, &PredefinedMenuItem::separator(),
+        &show_logs_item, &hide_logs_item, &PredefinedMenuItem::separator(),
+        &quit_item,
+    ]);
 
-    tray.add_menu_item("Show Logs", || {
-        unsafe {
-            AllocConsole();
-            let window = GetConsoleWindow();
-            if !window.is_null() { ShowWindow(window, SW_SHOW); }
-        }
-        println!("=== PC Monitor Live Logs ===");
-    }).ok();
+    let icon = Icon::from_path("icon.ico", Some((32, 32))).unwrap_or_else(|_| Icon::from_rgba(vec![0; 64], 4, 4).unwrap());
+    let tray = TrayIconBuilder::new()
+        .with_menu(Box::new(tray_menu))
+        .with_tooltip("PC Monitor v1.23 [Initializing]")
+        .with_icon(icon)
+        .build()
+        .expect("Failed to create tray icon");
 
-    tray.add_menu_item("Hide Logs", || {
-        unsafe {
-            let window = GetConsoleWindow();
-            if !window.is_null() { ShowWindow(window, SW_HIDE); }
-        }
-    }).ok();
+    let config_clone = Arc::clone(&config);
+    let settings_id = settings_item.id().clone();
+    let show_logs_id = show_logs_item.id().clone();
+    let hide_logs_id = hide_logs_item.id().clone();
+    let quit_id = quit_item.id().clone();
 
-    tray.add_menu_item("Quit", || { std::process::exit(0); }).ok();
-
-    let mut sys = System::new_all();
-    let mut networks = Networks::new_with_refreshed_list();
-    let mut disks = Disks::new_with_refreshed_list();
+    let last_pong = Arc::new(Mutex::new(Instant::now() - Duration::from_secs(60)));
+    let last_pong_clone = Arc::clone(&last_pong);
 
     let ping_rtt = Arc::new(Mutex::new(0u128));
     let ping_clone = Arc::clone(&ping_rtt);
@@ -233,7 +230,10 @@ fn main() {
                 if msg.starts_with("PONG|") {
                     if let Ok(ts) = msg[5..].parse::<u128>() {
                         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis();
-                        if now >= ts { if let Ok(mut p) = ping_clone.lock() { *p = now - ts; } }
+                        if now >= ts { 
+                            if let Ok(mut p) = ping_clone.lock() { *p = now - ts; } 
+                            if let Ok(mut lp) = last_pong_clone.lock() { *lp = Instant::now(); }
+                        }
                     }
                 }
             }
@@ -242,34 +242,31 @@ fn main() {
 
     let cfg_bg = Arc::clone(&config);
     thread::spawn(move || {
+        let mut sys = System::new_all();
+        let mut networks = Networks::new_with_refreshed_list();
+        let mut disks = Disks::new_with_refreshed_list();
         let mut serial_port: Option<Box<dyn serialport::SerialPort>> = None;
         let mut last_serial_retry = Instant::now() - Duration::from_secs(10);
 
         loop {
             let start_time = Instant::now();
             let current_cfg = cfg_bg.lock().unwrap().clone();
-
             if serial_port.is_none() && last_serial_retry.elapsed() > Duration::from_secs(5) {
                 last_serial_retry = Instant::now();
                 if let Ok(p) = serialport::new(&current_cfg.com_port, current_cfg.baud_rate).timeout(Duration::from_millis(50)).open() {
-                    println!("[AUTO] Serial Connected to {}", current_cfg.com_port);
                     serial_port = Some(p);
                 }
             }
 
             sys.refresh_all();
             sys.refresh_processes_specifics(sysinfo::ProcessesToUpdate::All, true, sysinfo::ProcessRefreshKind::nothing().with_cpu().with_memory());
-            networks.refresh(true);
-            disks.refresh(true);
+            networks.refresh(true); disks.refresh(true);
 
             let cpu = sys.global_cpu_usage();
             let ram = (sys.used_memory() as f32 / sys.total_memory() as f32) * 100.0;
-            let mut down = 0.0;
-            let mut up = 0.0;
+            let mut down = 0.0; let mut up = 0.0;
             for (_, data) in &networks { down += data.received() as f32 / 1024.0; up += data.transmitted() as f32 / 1024.0; }
-            let mut disk_pct = 0.0;
-            if let Some(d) = disks.iter().next() { disk_pct = ((d.total_space() - d.available_space()) as f32 / d.total_space() as f32) * 100.0; }
-
+            let mut disk_pct = 0.0; if let Some(d) = disks.iter().next() { disk_pct = ((d.total_space() - d.available_space()) as f32 / d.total_space() as f32) * 100.0; }
             let stats = get_hardware_stats();
             let window_title = get_active_window();
             let window_short = if window_title.len() > 30 { format!("{}...", &window_title[..27]) } else { window_title };
@@ -297,5 +294,28 @@ fn main() {
         }
     });
 
-    loop { thread::sleep(Duration::from_secs(3600)); }
+    let mut last_status = false;
+    loop { 
+        if let Ok(event) = MenuEvent::receiver().try_recv() {
+            if event.id == settings_id {
+                let current = config_clone.lock().unwrap().clone();
+                open_settings_ui(current);
+            } else if event.id == show_logs_id {
+                unsafe { AllocConsole(); let window = GetConsoleWindow(); if !window.is_null() { ShowWindow(window, SW_SHOW); } }
+                println!("=== PC Monitor Live Logs ===");
+            } else if event.id == hide_logs_id {
+                unsafe { let window = GetConsoleWindow(); if !window.is_null() { ShowWindow(window, SW_HIDE); } }
+            } else if event.id == quit_id {
+                std::process::exit(0);
+            }
+        }
+
+        let is_online = last_pong.lock().unwrap().elapsed() < Duration::from_secs(3);
+        if is_online != last_status {
+            let status_str = if is_online { "Online" } else { "Offline" };
+            let _ = tray.set_tooltip(Some(format!("PC Monitor v1.23\nStatus: {}", status_str)));
+            last_status = is_online;
+        }
+        thread::sleep(Duration::from_millis(200)); 
+    }
 }

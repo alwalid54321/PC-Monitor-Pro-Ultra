@@ -13,7 +13,7 @@ typedef fs::FS FS;
 using namespace fs;
 
 /* 
- * PC MONITOR - SECURE PORTAL V1.22
+ * PC MONITOR - SECURE PORTAL V1.23
  * FEATURES: 
  *   - Secure HTTP POST for Credentials (body-only, no URL leak)
  *   - Pro Diagnostic Offline Screen
@@ -176,7 +176,7 @@ void setup() {
   graphSprite.setColorDepth(8); graphSprite.createSprite(320, 140); 
 
   tft.setTextColor(TFT_CYAN); tft.drawCentreString("PC MONITOR", 160, 80, 4);
-  tft.setTextColor(TFT_WHITE); tft.drawCentreString("V1.22 FINAL", 160, 120, 2);
+  tft.setTextColor(TFT_WHITE); tft.drawCentreString("V1.23 FINAL", 160, 120, 2);
 
   prefs.begin("wifi", true);
   String ssid = prefs.getString("ssid", ""); String pass = prefs.getString("pass", "");
