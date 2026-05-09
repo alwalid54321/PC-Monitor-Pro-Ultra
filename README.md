@@ -6,7 +6,7 @@ A high-performance, real-time PC monitoring system featuring a Rust-based backgr
 *Target Hardware: ESP32-2432S028R (Cheap Yellow Display)*
 
 ## 🚀 Key Features
-- **AMD Ryzen/Radeon Native Support:** Accurate temperature and usage tracking via LibreHardwareMonitor.
+- **AMD & NVIDIA Support:** Accurate temperature and usage tracking for Ryzen/Radeon and Intel/NVIDIA systems via LibreHardwareMonitor.
 - **Zero-Lag Graphing:** Sprite-based rendering on the ESP32 for ultra-smooth 60FPS updates.
 - **Smart Auto-Switching:** Automatically prefers USB Serial connection when plugged in, falling back to WiFi when wireless.
 - **Real-Time Ping:** True RTT calculation displayed on the screen.
