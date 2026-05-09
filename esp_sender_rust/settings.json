@@ -1,0 +1,6 @@
+{
+  "com_port": "COM9",
+  "baud_rate": 115200,
+  "esp_ip": "192.168.0.181:1234",
+  "auto_start": true
+}

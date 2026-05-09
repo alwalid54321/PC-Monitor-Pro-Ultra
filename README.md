@@ -1,4 +1,4 @@
-# PC Monitor Pro (Ultra Edition)
+# PC Monitor (v1.11)
 
 A high-performance, real-time PC monitoring system using a Rust-based sender and an ESP32 (CYD) receiver. Optimized for AMD hardware with dual-mode communication (Serial & WiFi).
 
@@ -11,10 +11,15 @@ A high-performance, real-time PC monitoring system using a Rust-based sender and
 - **Smart Auto-Switching:** Automatically prefers USB Serial connection when plugged in, falling back to WiFi when wireless.
 - **Real-Time Ping:** True RTT calculation displayed on the screen.
 - **Thermal Safety System:** Red screen alerts and LED warnings if hardware exceeds 85°C.
-- **Interactive UI:** 
+- **Interactive UI (ESP32):** 
   - Page 1: Live Graph + CPU/RAM/GPU % Overview.
   - Page 2: Detailed Metrics (Temp, VRAM, Disk, Network Speed).
-- **System Tray Integration:** Starts hidden on your PC with a professional taskbar icon.
+  - Page 3: Top Processes (CPU & RAM usage).
+- **Professional Desktop App (Rust):**
+  - **System Tray Integration:** Starts hidden on your PC with a custom heartbeat icon.
+  - **Unified Settings UI:** Right-click the tray icon to change ESP IP, COM Port, and Auto-Start toggle in a single window.
+  - **Live Logs:** Toggle a terminal window from the tray to see real-time data packets.
+  - **Auto-Start on Boot:** Easily enable/disable launching with Windows from the settings menu.
 - **Burn-in Protection:** Auto-dims the screen after 60s of inactivity.
 
 ## 🛠️ Hardware Requirements
@@ -33,19 +38,26 @@ A high-performance, real-time PC monitoring system using a Rust-based sender and
    ```bash
    cargo build -r
    ```
-4. Run the executable in `target/release/esp_sender_rust.exe`. It will start hidden in your system tray.
+4. Run the executable `target/release/Esp_Sender.exe`. It will start hidden in your system tray.
+5. **Configuration:** Right-click the tray icon and select **Settings** to configure your ESP's IP and COM port. These are saved to `settings.json`.
 
 ### 2. ESP Side (Arduino Receiver)
 1. Open `esp_receiver_cyd/esp_receiver_cyd.ino` in Arduino IDE.
-2. **Critical:** Update your WiFi SSID and Password in the `CONFIGURATION` section.
-3. Ensure you have the following libraries installed:
+2. Ensure you have the following libraries installed:
    - `TFT_eSPI` (Configure for CYD pins)
    - `XPT2046_Touchscreen`
-4. Upload to your ESP32 (Hold **BOOT** button if it fails to connect).
+3. Upload to your ESP32 (Hold **BOOT** button if it fails to connect).
+4. **WiFi Setup:** On first boot, the ESP will start a WiFi Portal named **"PC-Monitor-Setup"**. Connect with your phone and enter your WiFi credentials.
 
 ## 📁 Project Structure
 - `esp_sender_rust/`: Rust source code for the PC background service.
 - `esp_receiver_cyd/`: Arduino source code for the ESP32 display.
+
+## ⚙️ Configuration (`settings.json`)
+The Rust sender stores your preferences locally:
+- `com_port`: The serial port for wired connection (e.g., "COM10").
+- `esp_ip`: The network address of your ESP32 (e.g., "192.168.0.181:1234").
+- `auto_start`: Boolean to enable/disable launching with Windows.
 
 ## 🛡️ License
 MIT License. Free to use and modify.
