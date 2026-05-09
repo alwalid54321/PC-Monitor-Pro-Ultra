@@ -2,7 +2,7 @@
 
 A high-performance, real-time PC monitoring system featuring a Rust-based background service and an ESP32 (CYD) touchscreen display. Universal support for all PC hardware (AMD, NVIDIA, Intel) and Laptops with dual-mode communication (Serial & WiFi).
 
-![ESP32-2432S028R](https://raw.githubusercontent.com/witnessmenow/ESP32-Cheap-Yellow-Display/main/images/CYD-Front.jpg)
+![ESP32-2432S028R]([https://raw.githubusercontent.com/witnessmenow/ESP32-Cheap-Yellow-Display/main/images/CYD-Front.jpg](https://ae-pic-a1.aliexpress-media.com/kf/Se43918a565744a3586fee14eef837825w.jpg_640x640q75.jpg_.avif))
 *Target Hardware: ESP32-2432S028R (Cheap Yellow Display)*
 
 ## 🚀 Key Features
