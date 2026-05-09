@@ -46,20 +46,16 @@ impl Default for AppConfig {
 impl AppConfig {
     fn load() -> Self {
         if let Ok(data) = fs::read_to_string(SETTINGS_FILE) {
-            if let Ok(config) = serde_json::from_str(&data) {
-                return config;
-            }
+            if let Ok(config) = serde_json::from_str(&data) { return config; }
         }
         let default = AppConfig::default();
         let _ = default.save();
         default
     }
-
     fn save(&self) -> std::io::Result<()> {
         let data = serde_json::to_string_pretty(self).unwrap();
         fs::write(SETTINGS_FILE, data)
     }
-
     fn update_autostart(&self) {
         let exe_path = std::env::current_exe().unwrap();
         let exe_str = exe_path.to_str().unwrap();
@@ -75,11 +71,7 @@ impl AppConfig {
 
 fn open_settings_ui(current_config: AppConfig) {
     let available_ports = serialport::available_ports().unwrap_or_default();
-    let port_list = available_ports.iter()
-        .map(|p| p.port_name.clone())
-        .collect::<Vec<_>>()
-        .join(", ");
-    
+    let port_list = available_ports.iter().map(|p| p.port_name.clone()).collect::<Vec<_>>().join(", ");
     let port_hint = if port_list.is_empty() { "None detected".to_string() } else { format!("Found: {}", port_list) };
 
     let ps_script = format!(
@@ -104,16 +96,11 @@ fn open_settings_ui(current_config: AppConfig) {
          $btnCancel.DialogResult = [System.Windows.Forms.DialogResult]::Cancel; \
          $form.Controls.AddRange(@($lbl1, $txtIp, $lbl2, $txtCom, $chkAuto, $btnSave, $btnCancel)); \
          $form.AcceptButton = $btnSave; \
-         if ($form.ShowDialog() -eq 'OK') {{ \
-             echo ($txtIp.Text + '|' + $txtCom.Text + '|' + $chkAuto.Checked) \
-         }}", 
+         if ($form.ShowDialog() -eq 'OK') {{ echo ($txtIp.Text + '|' + $txtCom.Text + '|' + $chkAuto.Checked) }}", 
         current_config.esp_ip, port_hint, current_config.com_port, if current_config.auto_start { "$true" } else { "$false" }
     );
 
-    let output = Command::new("powershell")
-        .args(["-NoProfile", "-Command", &ps_script])
-        .creation_flags(CREATE_NO_WINDOW)
-        .output();
+    let output = Command::new("powershell").args(["-NoProfile", "-Command", &ps_script]).creation_flags(CREATE_NO_WINDOW).output();
 
     if let Ok(o) = output {
         let result = String::from_utf8_lossy(&o.stdout).trim().to_string();
@@ -138,17 +125,9 @@ fn open_settings_ui(current_config: AppConfig) {
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
-struct Sensor {
-    name: String,
-    value: f32,
-}
+struct Sensor { name: String, value: f32 }
 
-struct HardwareData {
-    cpu_temp: f32,
-    gpu_temp: f32,
-    gpu_usage: f32,
-    vram_usage: f32,
-}
+struct HardwareData { cpu_temp: f32, gpu_temp: f32, gpu_usage: f32, vram_usage: f32 }
 
 fn get_hardware_stats() -> HardwareData {
     let mut data = HardwareData { cpu_temp: 0.0, gpu_temp: 0.0, gpu_usage: 0.0, vram_usage: 0.0 };
@@ -199,11 +178,14 @@ fn main() {
         &quit_item,
     ]);
 
-    let icon = Icon::from_path("icon.ico", Some((32, 32))).unwrap_or_else(|_| Icon::from_rgba(vec![0; 64], 4, 4).unwrap());
+    // Load both icons
+    let icon_online = Icon::from_resource(101, Some((32, 32))).expect("Failed to load online icon");
+    let icon_offline = Icon::from_resource(102, Some((32, 32))).expect("Failed to load offline icon");
+
     let tray = TrayIconBuilder::new()
         .with_menu(Box::new(tray_menu))
         .with_tooltip("PC Monitor v1.23 [Initializing]")
-        .with_icon(icon)
+        .with_icon(icon_offline.clone()) // Start with offline icon
         .build()
         .expect("Failed to create tray icon");
 
@@ -254,6 +236,7 @@ fn main() {
             if serial_port.is_none() && last_serial_retry.elapsed() > Duration::from_secs(5) {
                 last_serial_retry = Instant::now();
                 if let Ok(p) = serialport::new(&current_cfg.com_port, current_cfg.baud_rate).timeout(Duration::from_millis(50)).open() {
+                    println!("[AUTO] Serial Connected to {}", current_cfg.com_port);
                     serial_port = Some(p);
                 }
             }
@@ -305,15 +288,14 @@ fn main() {
                 println!("=== PC Monitor Live Logs ===");
             } else if event.id == hide_logs_id {
                 unsafe { let window = GetConsoleWindow(); if !window.is_null() { ShowWindow(window, SW_HIDE); } }
-            } else if event.id == quit_id {
-                std::process::exit(0);
-            }
+            } else if event.id == quit_id { std::process::exit(0); }
         }
 
         let is_online = last_pong.lock().unwrap().elapsed() < Duration::from_secs(3);
         if is_online != last_status {
             let status_str = if is_online { "Online" } else { "Offline" };
             let _ = tray.set_tooltip(Some(format!("PC Monitor v1.23\nStatus: {}", status_str)));
+            let _ = tray.set_icon(Some(if is_online { icon_online.clone() } else { icon_offline.clone() }));
             last_status = is_online;
         }
         thread::sleep(Duration::from_millis(200)); 

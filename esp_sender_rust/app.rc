@@ -1,1 +1,2 @@
-app-icon ICON "icon.ico"
+101 ICON "icon_online.ico"
+102 ICON "icon_offline.ico"
