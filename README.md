@@ -2,6 +2,9 @@
 
 A high-performance, real-time PC monitoring system using a Rust-based sender and an ESP32 (CYD) receiver. Optimized for AMD hardware with dual-mode communication (Serial & WiFi).
 
+![ESP32-2432S028R](https://raw.githubusercontent.com/witnessmenow/ESP32-Cheap-Yellow-Display/main/images/CYD-Front.jpg)
+*Target Hardware: ESP32-2432S028R (Cheap Yellow Display)*
+
 ## 🚀 Key Features
 - **AMD Ryzen/Radeon Native Support:** Accurate temperature and usage tracking via LibreHardwareMonitor.
 - **Zero-Lag Graphing:** Sprite-based rendering on the ESP32 for ultra-smooth 60FPS updates.
@@ -15,7 +18,10 @@ A high-performance, real-time PC monitoring system using a Rust-based sender and
 - **Burn-in Protection:** Auto-dims the screen after 60s of inactivity.
 
 ## 🛠️ Hardware Requirements
-- **ESP32-2432S028R** (Cheap Yellow Display / CYD)
+- **ESP32-2432S028R** (Also known as the **Cheap Yellow Display / CYD**)
+  - 2.8" TFT Touchscreen (320x240)
+  - Integrated ESP32-WROOM
+  - Onboard LDR (Light Sensor) and RGB LED
 - Windows PC (AMD or Intel/NVIDIA)
 
 ## 📦 Setup Instructions
