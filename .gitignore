@@ -1,0 +1,14 @@
+# Rust
+target/
+**/*.rs.bk
+Cargo.lock
+
+# Arduino
+build/
+libraries/
+*.bin
+*.elf
+
+# OS
+.DS_Store
+Thumbs.db
