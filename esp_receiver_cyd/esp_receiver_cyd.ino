@@ -13,9 +13,9 @@ typedef fs::FS FS;
 using namespace fs;
 
 /* 
- * PC MONITOR - SECURITY & POLISH V1.21
+ * PC MONITOR - SECURE PORTAL V1.22
  * FEATURES: 
- *   - Secured WiFi Portal (WPA2 + Random Pass)
+ *   - Secure HTTP POST for Credentials (body-only, no URL leak)
  *   - Pro Diagnostic Offline Screen
  *   - Sharp High-Contrast UI
  *   - Real-time RSSI Signal Icons
@@ -59,7 +59,6 @@ String activeApp = "PC Monitor";
 String currentTime = "00:00:00";
 int currentPing = 0;
 String topCpuStr = "", topRamStr = "";
-String apPassword = "";
 
 float graphCPU[320], graphGPU[320], graphRAM[320];
 int graphIdx = 0;
@@ -83,51 +82,53 @@ void handlePortal() {
   html += "input,select{width:100%;padding:12px;margin:10px 0;background:#222;color:white;border:1px solid #444;border-radius:8px;box-sizing:border-box;}";
   html += "input[type='submit']{background:#00adb5;color:white;border:none;font-weight:bold;font-size:16px;margin-top:20px;}";
   html += ".err{color:#ff4d4d;padding:10px;} h1{color:#00adb5;}";
-  html += "</style></head><body><div class='card'><h1>PC Monitor</h1>";
+  html += "</style></head><body><div class='card'><h1>PC Monitor Setup</h1>";
   if (portalError != "") html += "<div class='err'>⚠ " + portalError + "</div>";
-  html += "<form action='/save'><h3>1. Select WiFi</h3><select name='s'>";
+  html += "<p>Secure Configuration Portal</p>";
+  html += "<form method='POST' action='/save'><h3>1. Select WiFi</h3><select name='s'>";
   int n = WiFi.scanNetworks();
   for (int i = 0; i < n; ++i) { html += "<option value='" + WiFi.SSID(i) + "'>" + WiFi.SSID(i) + " (" + String(WiFi.RSSI(i)) + "dBm)</option>"; }
-  html += "</select><input name='s_manual' placeholder='Manual SSID (Optional)'>";
+  html += "</select><input name='sm' placeholder='Manual SSID (Optional)'>";
   html += "<h3>2. Password</h3><input type='password' name='p' placeholder='WiFi Password'>";
-  html += "<input type='submit' value='Apply & Connect'></form></div></body></html>";
+  html += "<input type='submit' value='Save & Connect'></form></div></body></html>";
   server.send(200, "text/html", html);
 }
 
 void handleSave() {
   String s = server.arg("s");
-  if (server.arg("s_manual") != "") s = server.arg("s_manual");
+  if (server.hasArg("sm") && server.arg("sm") != "") s = server.arg("sm");
   String p = server.arg("p");
-  prefs.begin("wifi", false);
-  prefs.putString("ssid", s); prefs.putString("pass", p); prefs.putBool("valid", true);
-  prefs.end();
-  server.send(200, "text/html", "<html><body style='background:#0a0a0a;color:white;text-align:center;'><h2>Settings Saved!</h2><p>Restarting ESP...</p></body></html>");
-  delay(2000); ESP.restart();
+  
+  if (s != "") {
+    prefs.begin("wifi", false);
+    prefs.putString("ssid", s); prefs.putString("pass", p); prefs.putBool("valid", true);
+    prefs.end();
+    server.send(200, "text/html", "<html><body style='background:#0a0a0a;color:white;text-align:center;'><h2>Credentials Received</h2><p>Attempting to connect... The portal is now closed.</p></body></html>");
+    delay(2000); ESP.restart();
+  } else {
+    portalError = "SSID cannot be empty.";
+    handlePortal();
+  }
 }
 
 void startPortal(String error) {
   portalError = error;
-  // Generate a simple 4-digit PIN for security
-  randomSeed(analogRead(0));
-  apPassword = String(random(1000, 9999));
-  
   WiFi.mode(WIFI_AP);
-  WiFi.softAP("PC-Monitor-Setup", apPassword.c_str());
+  WiFi.softAP("PC-Monitor-Setup"); // Removed PIN security as requested
   dnsServer.start(53, "*", WiFi.softAPIP());
-  server.on("/", handlePortal);
-  server.on("/save", handleSave);
+  server.on("/", HTTP_GET, handlePortal);
+  server.on("/save", HTTP_POST, handleSave); // Use POST method for security
   server.begin();
   
   tft.fillScreen(TFT_BLACK);
-  tft.setTextColor(TFT_YELLOW); tft.drawCentreString("SECURE SETUP PORTAL", 160, 40, 4);
+  tft.setTextColor(TFT_YELLOW); tft.drawCentreString("WIFI SETUP PORTAL", 160, 40, 4);
   tft.setTextColor(TFT_WHITE);
-  tft.drawCentreString("Network: PC-Monitor-Setup", 160, 90, 2);
+  tft.drawCentreString("1. Connect to: PC-Monitor-Setup", 160, 90, 2);
+  tft.drawCentreString("2. Open browser: 192.168.4.1", 160, 120, 2);
   tft.setTextColor(TFT_CYAN);
-  tft.drawCentreString("Password: " + apPassword, 160, 120, 4); // Show PIN on screen
-  tft.setTextColor(TFT_WHITE);
-  tft.drawCentreString("Go to: 192.168.4.1", 160, 160, 2);
+  tft.drawCentreString("CREDENTIALS SECURED VIA POST", 160, 160, 2);
   
-  if (error != "") { tft.setTextColor(TFT_RED); tft.drawCentreString(error, 160, 210, 2); }
+  if (error != "") { tft.setTextColor(TFT_RED); tft.drawCentreString(error, 160, 200, 2); }
   while(true) { dnsServer.processNextRequest(); server.handleClient(); delay(10); }
 }
 
@@ -175,7 +176,7 @@ void setup() {
   graphSprite.setColorDepth(8); graphSprite.createSprite(320, 140); 
 
   tft.setTextColor(TFT_CYAN); tft.drawCentreString("PC MONITOR", 160, 80, 4);
-  tft.setTextColor(TFT_WHITE); tft.drawCentreString("V1.21 FINAL", 160, 120, 2);
+  tft.setTextColor(TFT_WHITE); tft.drawCentreString("V1.22 FINAL", 160, 120, 2);
 
   prefs.begin("wifi", true);
   String ssid = prefs.getString("ssid", ""); String pass = prefs.getString("pass", "");
