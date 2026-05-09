@@ -35,14 +35,12 @@ This project is designed specifically for the **ESP32-2432S028R**, commonly know
 ## 📦 Setup Instructions
 
 ### 1. PC Side (Rust Sender)
-1. Install [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) and keep it running (required for temps).
-2. Navigate to `esp_sender_rust/`.
-3. Build the project:
-   ```bash
-   cargo build -r
-   ```
-4. Run `target/release/Esp_Sender.exe`. It will start hidden in your system tray.
-5. **Configuration:** Right-click the tray icon and select **Settings** to configure your ESP's IP and COM port.
+1. **Download:** Get the latest pre-compiled executable from the [Official Releases](https://github.com/alwalid54321/PC-Monitor-Pro-Ultra/releases).
+2. Install [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) and keep it running (required for temps).
+3. Run `Esp_Sender.exe`. It will start hidden in your system tray.
+4. **Configuration:** Right-click the tray icon and select **Settings** to configure your ESP's IP and COM port.
+
+*Alternatively, you can build from source by navigating to `esp_sender_rust/` and running `cargo build -r`.*
 
 ### 2. ESP Side (Arduino Receiver)
 1. Open `esp_receiver_cyd/esp_receiver_cyd.ino` in Arduino IDE.
