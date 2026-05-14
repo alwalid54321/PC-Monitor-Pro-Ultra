@@ -1,6 +1,10 @@
 {
-  "com_port": "COM9",
+  "com_port": "COM10",
   "baud_rate": 115200,
   "esp_ip": "192.168.0.181:1234",
-  "auto_start": true
+  "auto_start": false,
+  "interval_ms": 800,
+  "hmac_key": "o5MMes2iG9k8jMe9BpBInlRMUqcx5NWaOUu3SEdGhB9CTXMTv9E7imRIISnLJJag",
+  "cpu_temp_limit": 85,
+  "gpu_temp_limit": 85
 }

@@ -1,19 +1,26 @@
 [package]
 name = "esp-sender"
-version = "1.23.0"
+version = "2.0.0"
 edition = "2021"
 
 [dependencies]
 serialport = "4.5"
 sysinfo = "0.37.2"
 anyhow = "1.0"
-regex = "1.11"
 tray-icon = "0.23"
 chrono = "0.4.44"
 wmi = "0.18.4"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0"
 winapi = { version = "0.3.9", features = ["winuser", "wincon", "consoleapi"] }
+mdns-sd = "0.14"
+nvml-wrapper = "0.10"
+hmac = "0.12"
+sha2 = "0.10"
+rand = "0.9"
+eframe = "0.31"
+winit = "0.30"
+hex = "0.4"
 
 [build-dependencies]
 embed-resource = "2.5"
