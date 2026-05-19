@@ -12,6 +12,7 @@ use sysinfo::{System, Networks, Disks};
 use tray_icon::{TrayIconBuilder, Icon, menu::{Menu, MenuItem, PredefinedMenuItem, MenuEvent}};
 use chrono::Local;
 use serde::{Deserialize, Serialize};
+use salah::prelude::*;
 use wmi::WMIConnection;
 use mdns_sd::{ServiceDaemon, ServiceEvent};
 use hmac::{Hmac, Mac};
@@ -53,9 +54,21 @@ struct AppConfig {
     pub cpu_temp_limit: u32,
     #[serde(default = "default_temp_limit")]
     pub gpu_temp_limit: u32,
+    #[serde(default = "default_latitude")]
+    pub latitude: f64,
+    #[serde(default = "default_longitude")]
+    pub longitude: f64,
+    #[serde(default = "default_prayer_method")]
+    pub prayer_method: u32, // 0=Dubai, 1=UmmAlQura, 2=MuslimWorldLeague, 3=ISNA, 4=Egyptian
+    #[serde(default = "default_madhab")]
+    pub madhab: u32, // 0=Shafi, 1=Hanafi
 }
 
 fn default_temp_limit() -> u32 { 85 }
+fn default_latitude() -> f64 { 24.4539 }  // Abu Dhabi default
+fn default_longitude() -> f64 { 54.3773 } // Abu Dhabi default
+fn default_prayer_method() -> u32 { 0 } // Default to Dubai
+fn default_madhab() -> u32 { 0 } // Default to Shafi
 
 impl Default for AppConfig {
     fn default() -> Self {
@@ -68,6 +81,10 @@ impl Default for AppConfig {
             hmac_key: String::new(),
             cpu_temp_limit: 85,
             gpu_temp_limit: 85,
+            latitude: 24.4539,
+            longitude: 54.3773,
+            prayer_method: 0,
+            madhab: 0,
         }
     }
 }
@@ -89,11 +106,15 @@ impl AppConfig {
         let exe_path = std::env::current_exe().unwrap();
         let exe_str = exe_path.to_str().unwrap();
         if self.auto_start {
-            let cmd = format!(r#"reg add "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run" /v "EspSender" /t REG_SZ /d "\"{}\"" /f"#, exe_str);
-            let _ = Command::new("powershell").args(["-Command", &cmd]).creation_flags(CREATE_NO_WINDOW).output();
+            let _ = Command::new("reg")
+                .args(["add", "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "/v", "EspSender", "/t", "REG_SZ", "/d", &format!("\"{}\"", exe_str), "/f"])
+                .creation_flags(CREATE_NO_WINDOW)
+                .output();
         } else {
-            let cmd = r#"reg delete "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run" /v "EspSender" /f"#;
-            let _ = Command::new("powershell").args(["-Command", &cmd]).creation_flags(CREATE_NO_WINDOW).output();
+            let _ = Command::new("reg")
+                .args(["delete", "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "/v", "EspSender", "/f"])
+                .creation_flags(CREATE_NO_WINDOW)
+                .output();
         }
     }
 }
@@ -226,6 +247,42 @@ impl eframe::App for SettingsApp {
             ui.add_space(4.0);
             ui.separator();
 
+            // ── Prayer Times Section ──
+            SettingsApp::section_header(ui, "🕌", "Prayer Times", egui::Color32::from_rgb(80, 200, 180));
+            egui::Grid::new("prayer_grid").num_columns(2).spacing([16.0, 8.0]).min_col_width(130.0).show(ui, |ui| {
+                ui.label("Latitude");
+                ui.add(egui::DragValue::new(&mut self.config.latitude).range(-90.0..=90.0).speed(0.01).max_decimals(4));
+                ui.end_row();
+
+                ui.label("Longitude");
+                ui.add(egui::DragValue::new(&mut self.config.longitude).range(-180.0..=180.0).speed(0.01).max_decimals(4));
+                ui.end_row();
+
+                ui.label("Method");
+                egui::ComboBox::from_id_salt("prayer_method").selected_text(match self.config.prayer_method {
+                    0 => "UAE (Abu Dhabi)", 1 => "Umm Al-Qura (KSA)", 2 => "Muslim World League", 3 => "ISNA (North America)", _ => "Egyptian"
+                }).show_ui(ui, |ui| {
+                    ui.selectable_value(&mut self.config.prayer_method, 0, "UAE (Abu Dhabi)");
+                    ui.selectable_value(&mut self.config.prayer_method, 1, "Umm Al-Qura (KSA)");
+                    ui.selectable_value(&mut self.config.prayer_method, 2, "Muslim World League");
+                    ui.selectable_value(&mut self.config.prayer_method, 3, "ISNA (North America)");
+                    ui.selectable_value(&mut self.config.prayer_method, 4, "Egyptian");
+                });
+                ui.end_row();
+
+                ui.label("Madhab (Asr)");
+                egui::ComboBox::from_id_salt("prayer_madhab").selected_text(match self.config.madhab {
+                    0 => "Shafi / Maliki / Hanbali", _ => "Hanafi"
+                }).show_ui(ui, |ui| {
+                    ui.selectable_value(&mut self.config.madhab, 0, "Shafi / Maliki / Hanbali");
+                    ui.selectable_value(&mut self.config.madhab, 1, "Hanafi");
+                });
+                ui.end_row();
+            });
+
+            ui.add_space(4.0);
+            ui.separator();
+
             // ── System Section ──
             SettingsApp::section_header(ui, "💻", "System", egui::Color32::from_rgb(100, 180, 255));
             ui.horizontal(|ui| {
@@ -286,6 +343,61 @@ impl eframe::App for SettingsApp {
 struct Sensor { name: String, value: f32 }
 
 struct HardwareData { cpu_temp: f32, gpu_temp: f32, gpu_usage: f32, vram_usage: f32 }
+
+/// Prayer time data computed locally using Umm Al-Qura method (same as UAE/KSA gov)
+struct PrayerData {
+    next_name: String,
+    countdown_secs: i64,
+}
+
+fn calculate_prayer_info(config: &AppConfig) -> PrayerData {
+    let coords = Coordinates::new(config.latitude, config.longitude);
+    let now = Local::now();
+    let date = now.date_naive();
+    
+    let method = match config.prayer_method {
+        0 => Method::Dubai,
+        1 => Method::UmmAlQura,
+        2 => Method::MuslimWorldLeague,
+        3 => Method::NorthAmerica,
+        _ => Method::Egyptian,
+    };
+    
+    let madhab = match config.madhab {
+        0 => Madhab::Shafi,
+        _ => Madhab::Hanafi,
+    };
+    
+    let params = Configuration::with(method, madhab);
+
+    let prayers = match PrayerSchedule::new()
+        .on(date)
+        .for_location(coords)
+        .with_configuration(params)
+        .calculate() {
+            Ok(p) => p,
+            Err(_) => return PrayerData { next_name: String::new(), countdown_secs: 0 },
+        };
+
+    let next = prayers.next();
+    let next_time = prayers.time(next);
+    let now_utc = chrono::Utc::now();
+    let diff = next_time.signed_duration_since(now_utc);
+    let countdown_secs = diff.num_seconds().max(0);
+
+    // Map prayer names — skip Sunrise/Qiyam/FajrTomorrow for display
+    let next_name = match next {
+        Prayer::Fajr | Prayer::FajrTomorrow => "Fajr".to_string(),
+        Prayer::Sunrise => "Sunrise".to_string(),
+        Prayer::Dhuhr => "Dhuhr".to_string(),
+        Prayer::Asr => "Asr".to_string(),
+        Prayer::Maghrib => "Maghrib".to_string(),
+        Prayer::Isha => "Isha".to_string(),
+        Prayer::Qiyam => "Qiyam".to_string(),
+    };
+
+    PrayerData { next_name, countdown_secs }
+}
 
 /// Discover ESP32 via mDNS. Returns "ip:port" or None.
 fn discover_esp(log: &LogBuffer) -> Option<String> {
@@ -526,7 +638,10 @@ fn main() {
 
             let rtt = *ping_rtt.lock().unwrap();
             let now_ts = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis();
-            let time_str = Local::now().format("%H:%M:%S").to_string();
+            let time_str = Local::now().format("%I:%M:%S %p").to_string();
+
+            // Calculate next prayer time (Umm Al-Qura / Shafi)
+            let prayer = calculate_prayer_info(&current_cfg);
 
             let mut processes: Vec<_> = sys.processes().values().collect();
             processes.sort_by(|a, b| b.cpu_usage().partial_cmp(&a.cpu_usage()).unwrap());
@@ -534,8 +649,8 @@ fn main() {
             processes.sort_by(|a, b| b.memory().cmp(&a.memory()));
             let top_ram = processes.iter().take(3).map(|p| format!("{}:{:.1}", p.name().to_string_lossy(), p.memory() as f32 / 1024.0 / 1024.0 / 1024.0)).collect::<Vec<_>>().join(";");
 
-            let packet = format!("STAT|{:.0}|{:.0}|{:.0}|{:.0}|{:.0}|{:.0}|{:.0}|{:.0}|{:.0}|{}|{}|{}|{}|{}|{}|{}|{}\n", 
-                cpu, ram, stats.gpu_usage, stats.cpu_temp, stats.gpu_temp, disk_pct, down, up, stats.vram_usage, rtt, time_str, window_short, now_ts, top_cpu, top_ram, current_cfg.cpu_temp_limit, current_cfg.gpu_temp_limit);
+            let packet = format!("STAT|{:.0}|{:.0}|{:.0}|{:.0}|{:.0}|{:.0}|{:.0}|{:.0}|{:.0}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}\n", 
+                cpu, ram, stats.gpu_usage, stats.cpu_temp, stats.gpu_temp, disk_pct, down, up, stats.vram_usage, rtt, time_str, window_short, now_ts, top_cpu, top_ram, current_cfg.cpu_temp_limit, current_cfg.gpu_temp_limit, prayer.next_name, prayer.countdown_secs);
 
             // Sign packet with HMAC if key is set
             let final_packet = if !current_cfg.hmac_key.is_empty() {

@@ -21,6 +21,7 @@ rand = "0.9"
 eframe = "0.31"
 winit = "0.30"
 hex = "0.4"
+salah = "0.7"
 
 [build-dependencies]
 embed-resource = "2.5"

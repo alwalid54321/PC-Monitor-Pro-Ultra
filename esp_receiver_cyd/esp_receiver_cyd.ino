@@ -87,6 +87,11 @@ float netDEMA = 0, netUEMA = 0;
 String activeApp = "PC Monitor";
 String currentTime = "00:00:00";
 int currentPing = 0;
+
+// Prayer time state
+String nextPrayerName = "";
+long prayerCountdownSecs = 0;
+unsigned long lastCountdownUpdate = 0;
 String topCpuStr = "", topRamStr = "";
 
 float graphCPU[320], graphGPU[320], graphRAM[320];
@@ -365,9 +370,44 @@ void drawGraphView() {
     graphSprite.drawLine(x, 130-(graphRAM[i1]*1.2), x+1, 130-(graphRAM[i2]*1.2), t().ram);
   }
   graphSprite.pushSprite(0, 35);
+
+  // --- Bottom section: Prayer countdown + time ---
   tft.fillRect(0, 175, 320, 65, t().bg);
-  tft.setTextColor(t().text); tft.drawCentreString(currentTime, 160, 185, 4);
-  tft.setTextColor(thermalAlert ? t().warn : t().accent); tft.drawCentreString(activeApp, 160, 215, 2);
+
+  if (nextPrayerName != "") {
+    // Tick countdown locally for smooth display
+    long displaySecs = prayerCountdownSecs;
+    if (lastCountdownUpdate > 0) {
+      long elapsed = (millis() - lastCountdownUpdate) / 1000;
+      displaySecs = max(0L, prayerCountdownSecs - elapsed);
+    }
+    int h = displaySecs / 3600;
+    int m = (displaySecs % 3600) / 60;
+    int s = displaySecs % 60;
+    char countBuf[16];
+    sprintf(countBuf, "%d:%02d:%02d", h, m, s);
+
+    // Prayer name on left, countdown on right
+    tft.setTextColor(egui_color(80, 200, 180)); 
+    tft.drawString(nextPrayerName, 5, 180, 4);
+    tft.setTextColor(t().text);
+    tft.drawRightString(String(countBuf), 315, 180, 4);
+
+    // Current time + active app below
+    tft.setTextColor(t().accent);
+    tft.drawString(currentTime, 5, 215, 2);
+    tft.setTextColor(thermalAlert ? t().warn : 0x7BEF);
+    tft.drawRightString(activeApp, 315, 215, 2);
+  } else {
+    // Fallback: original layout if no prayer data yet
+    tft.setTextColor(t().text); tft.drawCentreString(currentTime, 160, 185, 4);
+    tft.setTextColor(thermalAlert ? t().warn : t().accent); tft.drawCentreString(activeApp, 160, 215, 2);
+  }
+}
+
+// Helper to create color inline (avoids preprocessor issues)
+uint16_t egui_color(uint8_t r, uint8_t g, uint8_t b) {
+  return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
 }
 
 void drawDashboardView() {
@@ -463,6 +503,13 @@ void processIncoming(String line) {
   if (i >= 18) {
       cpuLimit = pts[16].toInt();
       gpuLimit = pts[17].toInt();
+  }
+
+  // Parse prayer time fields (indices 18-19 in 0-based, which are pts[18] and pts[19])
+  if (i >= 20) {
+      nextPrayerName = pts[18];
+      prayerCountdownSecs = pts[19].toInt();
+      lastCountdownUpdate = millis();
   }
 
   if (WiFi.status() == WL_CONNECTED) { udp.beginPacket(udp.remoteIP(), replyPort); udp.print("PONG|" + seq_ts); udp.endPacket(); }
